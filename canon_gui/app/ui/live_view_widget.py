@@ -112,15 +112,26 @@ class LiveViewWidget(QWidget):
         """Handle new frame from the camera.
         
         Args:
-            frame: Camera frame as NumPy array
+            frame: Camera frame as NumPy array or bytes
         """
         if frame is None:
             return
-            
-        self._current_frame = frame.copy()
         
+        # If frame is bytes, convert to NumPy array
+        if isinstance(frame, bytes):
+            try:
+                # Assuming RGB format with width=640, height=480
+                frame_np = np.frombuffer(frame, dtype=np.uint8).reshape(480, 640, 3)
+                self._current_frame = frame_np.copy()
+            except Exception as e:
+                logger.error(f"Error converting bytes to array: {e}")
+                return
+        else:
+            # Frame is already a NumPy array
+            self._current_frame = frame.copy()
+            
         # Process the frame (apply selected enhancements)
-        processed_frame = self._process_frame(frame)
+        processed_frame = self._process_frame(self._current_frame)
         
         # Convert the frame to QImage
         if len(processed_frame.shape) == 3 and processed_frame.shape[2] == 3:

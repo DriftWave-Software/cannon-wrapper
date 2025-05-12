@@ -9,18 +9,29 @@ from PyQt6.QtCore import QObject, pyqtSignal
 
 # Import the cannon_wrapper
 try:
+    # Try to import the real cannon_wrapper
     from cannon_wrapper import Canon, CanonError, DeviceNotFoundError
     _has_camera = True
+    _is_mock = False
+    logging.info("Using real cannon_wrapper module")
 except ImportError:
-    logging.warning("Could not import cannon_wrapper. Camera functionality will be disabled.")
-    _has_camera = False
-    # Create placeholder classes for type hints
-    class Canon:
-        pass
-    class CanonError(Exception):
-        pass
-    class DeviceNotFoundError(Exception):
-        pass
+    try:
+        # Try to import our mock implementation
+        from app.utils.mocks.cannon_wrapper import Canon, CanonError, DeviceNotFoundError
+        _has_camera = True
+        _is_mock = True
+        logging.info("Using mock cannon_wrapper module")
+    except ImportError:
+        logging.warning("Could not import cannon_wrapper. Camera functionality will be disabled.")
+        _has_camera = False
+        _is_mock = False
+        # Create placeholder classes for type hints
+        class Canon:
+            pass
+        class CanonError(Exception):
+            pass
+        class DeviceNotFoundError(Exception):
+            pass
 
 logger = logging.getLogger("canon_gui.camera")
 
@@ -45,6 +56,9 @@ class CameraManager(QObject):
         if not _has_camera:
             logger.warning("Camera functionality is disabled.")
             self.camera_error.emit("Could not load camera module. Camera functionality is disabled.")
+        elif _is_mock:
+            logger.info("Using mock camera implementation.")
+            self.status_changed.emit("Using mock camera - real hardware not available")
     
     def is_available(self) -> bool:
         """Check if camera functionality is available.
