@@ -1,0 +1,4 @@
+PyQt6>=6.4.0
+numpy>=1.23.0
+opencv-python>=4.6.0.0  # Optional, for advanced image processing
+pillow>=9.2.0  # For basic image processing 

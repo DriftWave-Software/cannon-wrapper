@@ -1,0 +1,136 @@
+"""
+Camera Manager Module
+Handles camera connection, disconnection, and status monitoring.
+"""
+
+import logging
+from typing import List, Dict, Any, Optional, Tuple, Callable
+from PyQt6.QtCore import QObject, pyqtSignal
+
+# Import the cannon_wrapper
+try:
+    from cannon_wrapper import Canon, CanonError, DeviceNotFoundError
+    _has_camera = True
+except ImportError:
+    logging.warning("Could not import cannon_wrapper. Camera functionality will be disabled.")
+    _has_camera = False
+    # Create placeholder classes for type hints
+    class Canon:
+        pass
+    class CanonError(Exception):
+        pass
+    class DeviceNotFoundError(Exception):
+        pass
+
+logger = logging.getLogger("canon_gui.camera")
+
+class CameraManager(QObject):
+    """Manager class for controlling Canon cameras."""
+    
+    # Define signals
+    camera_connected = pyqtSignal(str)  # Camera model name
+    camera_disconnected = pyqtSignal()
+    camera_error = pyqtSignal(str)  # Error message
+    status_changed = pyqtSignal(str)  # Status message
+    
+    def __init__(self):
+        """Initialize the camera manager."""
+        super().__init__()
+        
+        self._camera = None
+        self._is_connected = False
+        self._camera_info = {}
+        
+        # Check if camera functionality is available
+        if not _has_camera:
+            logger.warning("Camera functionality is disabled.")
+            self.camera_error.emit("Could not load camera module. Camera functionality is disabled.")
+    
+    def is_available(self) -> bool:
+        """Check if camera functionality is available.
+        
+        Returns:
+            True if camera functionality is available, False otherwise.
+        """
+        return _has_camera
+    
+    def connect_camera(self) -> bool:
+        """Connect to a camera.
+        
+        Returns:
+            True if connected successfully, False otherwise.
+        """
+        if not _has_camera:
+            self.camera_error.emit("Camera module not available")
+            return False
+            
+        try:
+            self.status_changed.emit("Connecting to camera...")
+            self._camera = Canon()
+            self._camera.connect()
+            
+            # Get camera information
+            self._camera_info = {
+                "model": self._camera.get_device_info().get("product_name", "Unknown Camera"),
+                "serial": self._camera.get_device_info().get("serial_number", "Unknown"),
+                "battery": self._camera.get_battery_level()
+            }
+            
+            self._is_connected = True
+            self.camera_connected.emit(self._camera_info["model"])
+            self.status_changed.emit(f"Connected to {self._camera_info['model']}")
+            return True
+            
+        except DeviceNotFoundError:
+            self.camera_error.emit("No camera found. Please make sure a camera is connected and turned on.")
+            self.status_changed.emit("Connection failed: No camera found")
+            return False
+        except CanonError as e:
+            self.camera_error.emit(f"Error connecting to camera: {str(e)}")
+            self.status_changed.emit("Connection failed")
+            return False
+    
+    def disconnect_camera(self) -> bool:
+        """Disconnect from the camera.
+        
+        Returns:
+            True if disconnected successfully, False otherwise.
+        """
+        if not self._is_connected or not self._camera:
+            return True
+            
+        try:
+            self.status_changed.emit("Disconnecting camera...")
+            self._camera.disconnect()
+            self._is_connected = False
+            self._camera = None
+            self.camera_disconnected.emit()
+            self.status_changed.emit("Camera disconnected")
+            return True
+        except CanonError as e:
+            self.camera_error.emit(f"Error disconnecting camera: {str(e)}")
+            return False
+    
+    def is_connected(self) -> bool:
+        """Check if a camera is connected.
+        
+        Returns:
+            True if a camera is connected, False otherwise.
+        """
+        return self._is_connected
+    
+    def get_camera_info(self) -> Dict[str, Any]:
+        """Get information about the connected camera.
+        
+        Returns:
+            Dictionary with camera information.
+        """
+        return self._camera_info
+    
+    def get_camera(self) -> Optional[Canon]:
+        """Get the camera object.
+        
+        Returns:
+            Camera object if connected, None otherwise.
+        """
+        return self._camera 
