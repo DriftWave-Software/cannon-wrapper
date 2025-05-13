@@ -304,7 +304,7 @@ class MainWindow(QMainWindow):
             self._status_bar.showMessage("Taking photo...")
             # You'd need to implement this to choose a save path
             save_path = os.path.join(os.path.expanduser("~"), "Pictures", "CanonControl")
-            camera.take_photo(save_path)
+            camera.take_picture(save_path)
             self._status_bar.showMessage("Photo taken", 3000)
         except Exception as e:
             logger.error(f"Error taking photo: {str(e)}")

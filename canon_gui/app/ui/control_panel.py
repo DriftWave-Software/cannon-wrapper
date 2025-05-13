@@ -527,7 +527,7 @@ class ControlPanel(QWidget):
     
     def _on_capture_clicked(self):
         """Handle capture button click."""
-        self._take_photo()
+        self._take_picture()
     
     def _on_record_clicked(self):
         """Handle record button click."""
@@ -576,10 +576,10 @@ class ControlPanel(QWidget):
             # Delayed capture
             # In a real implementation, you'd show a countdown
             # For simplicity, we'll just use a QTimer
-            QTimer.singleShot(timer_value * 1000, self._take_photo)
+            QTimer.singleShot(timer_value * 1000, self._take_picture)
         else:
             # Immediate capture
-            self._take_photo()
+            self._take_picture()
     
     def _on_interval_clicked(self):
         """Handle interval button click."""
@@ -630,7 +630,7 @@ class ControlPanel(QWidget):
         # Set the value in camera settings
         self._camera_settings.set_setting(setting_name, value)
     
-    def _take_photo(self):
+    def _take_picture(self):
         """Take a photo with the current settings."""
         camera = self._camera_manager.get_camera()
         if not camera:
@@ -641,7 +641,7 @@ class ControlPanel(QWidget):
             os.makedirs(self._current_save_path)
             
         try:
-            camera.take_photo(self._current_save_path)
+            camera.take_picture(self._current_save_path)
         except Exception as e:
             logger.error(f"Error taking photo: {str(e)}")
             # The error will be shown by MainWindow 

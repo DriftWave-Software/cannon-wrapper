@@ -7,6 +7,11 @@ import logging
 from typing import List, Dict, Any, Optional, Tuple, Callable
 from PyQt6.QtCore import QObject, pyqtSignal
 
+# Ensure the project root is in sys.path so edsdk_bindings can be found
+import sys
+import os
+sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '../../../')))
+
 # Import the cannon_wrapper
 try:
     # Try to import the real cannon_wrapper
@@ -82,14 +87,22 @@ class CameraManager(QObject):
             self.status_changed.emit("Connecting to camera...")
             self._camera = Canon()
             
-            # Get the first available camera - in a real implementation, we should
-            # discover cameras and let the user select one
-
-            # The EDSDK C++ layer should handle camera discovery
-            # For now, we'll assume there's a camera available
-            # TODO: Add proper camera discovery
-            camera_ref = "CAMERA_REF_PLACEHOLDER"  # This needs to be replaced with actual camera reference
-            self._camera.connect(camera_ref)
+            # Get the first available camera using EDSDK
+            import edsdk_bindings as eds
+            eds.EdsInitializeSDK()
+            cam_list = eds.EdsGetCameraList()
+            count = eds.EdsGetChildCount(cam_list)
+            if count > 0:
+                camera_ref = eds.EdsGetChildAtIndex(cam_list, 0)
+                self._camera.connect(camera_ref)
+            else:
+                self.camera_error.emit("No cameras found. Please make sure a camera is connected and turned on.")
+                self.status_changed.emit("Connection failed: No camera found")
+                eds.EdsRelease(cam_list)
+                eds.EdsTerminateSDK()
+                return False
+            eds.EdsRelease(cam_list)
+            eds.EdsTerminateSDK()
             
             # Get camera information
             self._camera_info = {

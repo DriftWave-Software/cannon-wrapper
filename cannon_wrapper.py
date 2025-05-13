@@ -283,9 +283,12 @@ class Canon:
     # Camera operations
     # -------------------------------------------------------------------------
     
-    def take_picture(self) -> bool:
+    def take_picture(self, save_path: str = None) -> bool:
         """Take a picture with the camera.
         
+        Args:
+            save_path: Optional path to save the photo.
+            
         Returns:
             True if successful, False otherwise.
             
@@ -295,7 +298,10 @@ class Canon:
         self._ensure_connected()
         
         try:
-            cmd = eds.TakePictureCommand(self._model.get_camera_object())
+            if save_path is not None:
+                cmd = eds.TakePictureCommand(self._model.get_camera_object(), save_path)
+            else:
+                cmd = eds.TakePictureCommand(self._model.get_camera_object())
             return cmd.execute()
             
         except Exception as e:

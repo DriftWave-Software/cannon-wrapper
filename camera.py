@@ -49,14 +49,20 @@ class Canon:
     # Camera operations
     # --------------------------------------------------------------------------
     
-    def take_picture(self) -> bool:
+    def take_picture(self, save_path: str = None) -> bool:
         """Take a picture with the connected camera.
+        
+        Args:
+            save_path: Optional path to save the photo.
         
         Returns:
             True if successful, False otherwise.
         """
         self._ensure_connected()
-        return self._model.take_picture()
+        if save_path is not None:
+            return self._model.take_picture(save_path)
+        else:
+            return self._model.take_picture()
         
     def press_shutter_halfway(self) -> bool:
         """Press the shutter button halfway (for focusing).
@@ -164,7 +170,7 @@ class Canon:
         else:
             drive_lens = edsdk_bindings.EdsEvfDriveLens.NEAR_1
             
-        cmd = edsdk_bindings.DriveLensCommand(self._model, drive_lens)
+        cmd = edsdk_bindings.DriveLensCommand(self._model.get_camera_object(), drive_lens)
         return cmd.execute()
         
     def focus_far(self, level: int = 3) -> bool:
@@ -184,7 +190,7 @@ class Canon:
         else:
             drive_lens = edsdk_bindings.EdsEvfDriveLens.FAR_1
             
-        cmd = edsdk_bindings.DriveLensCommand(self._model, drive_lens)
+        cmd = edsdk_bindings.DriveLensCommand(self._model.get_camera_object(), drive_lens)
         return cmd.execute()
         
     # --------------------------------------------------------------------------

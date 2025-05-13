@@ -159,6 +159,7 @@ public:
 class TakePictureCommand {
 public:
     TakePictureCommand(uintptr_t model) {}
+    TakePictureCommand(uintptr_t model, const std::string& save_path) {}
     bool execute() { return true; }
 };
 
@@ -381,6 +382,7 @@ PYBIND11_MODULE(edsdk_bindings, m) {
 
     py::class_<TakePictureCommand>(m, "TakePictureCommand")
         .def(py::init<uintptr_t>())
+        .def(py::init<uintptr_t, const std::string&>())
         .def("execute", &TakePictureCommand::execute);
         
     py::class_<PressShutterButtonCommand>(m, "PressShutterButtonCommand")
@@ -460,11 +462,13 @@ PYBIND11_MODULE(edsdk_bindings, m) {
         .def("update", &Observer::update);
         
     py::class_<Observable>(m, "Observable")
+        .def(py::init<>())
         .def("add_observer", &Observable::addObserver)
         .def("remove_observer", &Observable::removeObserver)
         .def("notify_observers", &Observable::notifyObservers);
 
     py::class_<Thread>(m, "Thread")
+        .def(py::init<>())
         .def("start", &Thread::start)
         .def("join", &Thread::join)
         .def("suspend", &Thread::suspend)
