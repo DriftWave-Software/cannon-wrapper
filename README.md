@@ -12,6 +12,7 @@ Key features:
 - Proper error handling with Python exceptions
 - Type hints for better IDE support
 - Compatible with Windows, macOS, and Linux (where EDSDK is available)
+- PyQt6-based GUI application for visual camera control
 
 ## Structure
 
@@ -22,6 +23,8 @@ cannon_wrapper/
 ├── camera.py             # Main Camera control class
 ├── exceptions.py         # Python exceptions for error handling
 ├── utils.py              # Core utility functions
+├── cannon_wrapper.py     # High-level Python wrapper for EDSDK bindings
+├── camera_test.py        # Test script for camera functionality
 ├── api/                  # High-level API
 │   ├── __init__.py       # API module initializer
 │   ├── camera.py         # Camera class re-exports
@@ -37,10 +40,18 @@ cannon_wrapper/
 │   ├── resources/        # Resources and assets
 │   ├── docs/             # Documentation
 │   └── projects/         # Project files
-└── examples/             # Example scripts
-    ├── __init__.py       # Examples module initializer
-    ├── basic_camera.py   # Basic camera operations example
-    └── live_view.py      # Live view example
+├── examples/             # Example scripts
+│   ├── __init__.py       # Examples module initializer
+│   ├── basic_camera.py   # Basic camera operations example
+│   └── live_view.py      # Live view example
+└── canon_gui/            # GUI application for camera control
+    ├── app/              # Application modules
+    │   ├── camera/       # Camera control modules
+    │   ├── ui/           # UI components
+    │   └── utils/        # Utility functions and classes
+    ├── resources/        # Resources and assets
+    ├── main.py           # Main application entry point
+    └── requirements.txt  # GUI application dependencies
 ```
 
 ## Installation
@@ -59,119 +70,159 @@ cannon_wrapper/
 2. Install build requirements: `pip install pybind11 scikit-build cmake`
 3. Build the package: `pip install -e .`
 
+### Installing GUI dependencies
+
+If you want to use the GUI application, install additional dependencies:
+
+```bash
+pip install -r canon_gui/requirements.txt
+```
+
 ## Usage
 
 ### Basic Usage
 
 ```python
-from cannon_wrapper import Canon
+from cannon_wrapper import Canon, DeviceNotFoundError, ConnectionError
 
-# Connect to a camera
-camera = Canon()
-camera.connect_to_camera()
-
-# Take a picture
-camera.take_picture()
-
-# Adjust camera settings
-camera.set_iso(800)
-camera.set_aperture(camera.AV_F8)
-camera.set_shutter_speed(camera.TV_1_125)
-
-# Use live view
-camera.start_live_view()
-frame = camera.download_live_view_frame()
-# Process frame...
-camera.stop_live_view()
-
-# Use context manager for auto-cleanup
-with Canon() as cam:
-    cam.connect_to_camera()
-    cam.take_picture()
+try:
+    # Connect to a camera
+    camera = Canon()
+    camera.connect(camera_ref)  # Use camera_ref from EDSDK initialization
+    
+    # Get camera information
+    model_name = camera.get_model_name()
+    print(f"Connected to camera: {model_name}")
+    
+    # Take a picture
+    camera.take_picture()
+    
+    # Adjust camera settings
+    camera.set_iso(800)
+    camera.set_aperture(5)  # Aperture value from EDSDK
+    camera.set_shutter_speed(12)  # Shutter speed value from EDSDK
+    
+    # Use live view
+    camera.start_live_view()
+    frame = camera.download_live_view_frame()
+    # Process frame...
+    camera.stop_live_view()
+    
+    # Disconnect
+    camera.disconnect()
+    
+except DeviceNotFoundError:
+    print("No camera found. Please make sure a camera is connected and turned on.")
+except ConnectionError as e:
+    print(f"Error connecting to camera: {e}")
+except Exception as e:
+    print(f"Unexpected error: {e}")
 ```
 
-### Advanced Live View Usage
+### Using the Context Manager
 
 ```python
-from cannon_wrapper.api.live_view import LiveViewManager
-from cannon_wrapper import Canon
+from cannon_wrapper import Canon, DeviceNotFoundError, ConnectionError
 
-# Connect to camera
-camera = Canon()
-camera.connect_to_camera()
-
-# Get the camera model
-model = camera._model  # Internal access, normally not recommended
-
-# Create a live view manager
-live_view = LiveViewManager(model)
-
-# Use as context manager
-with live_view:
-    # Live view is automatically started
-    
-    # Set zoom level
-    live_view.set_zoom_level(5)
-    
-    # Set zoom position
-    live_view.set_zoom_position(320, 240)
-    
-    # Download frame
-    frame = live_view.download_frame()
-    
-    # Focus operations
-    live_view.drive_lens_near(step=2)
-    live_view.drive_lens_far(step=1)
-    live_view.auto_focus(320, 240)
-    
-    # Get focus info
-    focus_info = live_view.get_focus_info()
-    print(f"Zoom level: {focus_info['zoom_level']}")
-    
-    # Live view is automatically stopped when exiting the context
+try:
+    # Use context manager for auto-cleanup
+    with Canon() as camera:
+        camera.connect(camera_ref)
+        camera.take_picture()
+        # More operations...
+        
+except DeviceNotFoundError:
+    print("No camera found. Please make sure a camera is connected and turned on.")
+except ConnectionError as e:
+    print(f"Error connecting to camera: {e}")
+except Exception as e:
+    print(f"Unexpected error: {e}")
 ```
 
-### Using Camera Settings
+### Using the GUI Application
 
-```python
-from cannon_wrapper.api.settings import ISOSettings, ApertureSettings, ShutterSpeedSettings
-from cannon_wrapper import Canon
+The package includes a PyQt6-based GUI application for camera control:
 
-camera = Canon()
-camera.connect_to_camera()
+```bash
+# Run the GUI application
+python -m canon_gui.main
+```
 
-# Set ISO using predefined constants
-camera.set_iso(ISOSettings.ISO_800)
-print(f"ISO: {ISOSettings.get_label(camera.get_iso())}")
+The GUI application provides:
+- Camera connection and disconnection
+- Live view display
+- Camera settings adjustment
+- Photo capture
+- Focus control
+- And more...
 
-# Set aperture using predefined constants
-camera.set_aperture(ApertureSettings.F8_0)
-print(f"Aperture: {ApertureSettings.get_label(camera.get_aperture())}")
+### Testing Camera Functionality
 
-# Set shutter speed using predefined constants
-camera.set_shutter_speed(ShutterSpeedSettings.SEC_1_125)
-print(f"Shutter speed: {ShutterSpeedSettings.get_label(camera.get_shutter_speed())}")
+A simple test script is provided to verify camera functionality:
+
+```bash
+# Test all functionality
+python camera_test.py
+
+# Test specific functionality
+python camera_test.py --test connection
+python camera_test.py --test settings
+python camera_test.py --test live_view
+python camera_test.py --test picture
 ```
 
 ## API Reference
 
-See the examples directory for more detailed usage examples.
+### Main Classes
+
+- `Canon`: High-level interface for Canon cameras
+- `EdsEventListener`: Event listener for camera events
+- `DeviceNotFoundError`, `ConnectionError`, `OperationError`: Exception classes
+
+### Key Methods
+
+#### Camera Connection
+- `connect(camera_ref=None)`: Connect to a camera
+- `disconnect()`: Disconnect from the camera
+- `is_connected()`: Check if the camera is connected
+- `get_model_name()`: Get the camera model name
+- `get_device_info()`: Get information about the connected camera
+
+#### Camera Operations
+- `take_picture()`: Take a picture
+- `press_shutter(mode)`: Press the shutter button in a specific mode
+
+#### Live View Operations
+- `start_live_view()`: Start the camera's live view mode
+- `stop_live_view()`: Stop the camera's live view mode
+- `download_live_view_frame()`: Download the current live view frame
+- `focus(direction, level=3)`: Focus the lens in the specified direction
+
+#### Camera Settings
+- `get_iso()`, `set_iso(iso)`: Get/set ISO value
+- `get_aperture()`, `set_aperture(aperture)`: Get/set aperture value
+- `get_shutter_speed()`, `set_shutter_speed(shutter_speed)`: Get/set shutter speed
+- `get_available_iso_values()`: Get available ISO values
+- `get_available_aperture_values()`: Get available aperture values
+- `get_available_shutter_values()`: Get available shutter speed values
 
 ## Error Handling
 
 ```python
-from cannon_wrapper import Canon, DeviceNotFoundError, DeviceBusyError
+from cannon_wrapper import Canon, DeviceNotFoundError, ConnectionError, OperationError
 
 try:
     camera = Canon()
-    camera.connect_to_camera()
+    camera.connect(camera_ref)
     camera.take_picture()
 except DeviceNotFoundError:
     print("Camera not found. Check connections.")
-except DeviceBusyError:
-    print("Camera is busy. Try again later.")
+except ConnectionError:
+    print("Error connecting to camera.")
+except OperationError as e:
+    print(f"Camera operation error: {e}")
 except Exception as e:
-    print(f"An error occurred: {e}")
+    print(f"An unexpected error occurred: {e}")
 ```
 
 ## License

@@ -1,38 +1,32 @@
 """
-Live View Widget Module
-Widget for displaying camera live view.
+Live View Widget
+Displays the camera's live view.
 """
 
 import logging
 import numpy as np
-from typing import Optional
-from PyQt6.QtWidgets import (
-    QWidget, QVBoxLayout, QLabel, QSizePolicy, QFrame, 
-    QSlider, QHBoxLayout, QPushButton, QComboBox
-)
-from PyQt6.QtCore import Qt, QSize, pyqtSlot
-from PyQt6.QtGui import QImage, QPixmap, QPainter, QColor, QPen
+from PyQt6.QtWidgets import QWidget, QVBoxLayout, QLabel, QSizePolicy
+from PyQt6.QtCore import Qt, pyqtSlot
+from PyQt6.QtGui import QImage, QPixmap, QPainter, QPen, QColor
 
-logger = logging.getLogger("canon_gui.ui.live_view")
+logger = logging.getLogger("canon_gui.live_view")
 
 class LiveViewWidget(QWidget):
-    """Widget for displaying camera live view."""
+    """Widget for displaying the camera's live view."""
     
     def __init__(self, live_view_manager, parent=None):
         """Initialize the live view widget.
         
         Args:
-            live_view_manager: Live view manager
+            live_view_manager: Live view manager instance
             parent: Parent widget
         """
         super().__init__(parent)
-        
         self._live_view_manager = live_view_manager
         self._current_frame = None
-        self._zoom_factor = 1.0
-        self._show_focus_peaking = False
-        self._show_histogram = False
-        self._show_grid = False
+        self._display_overlays = True
+        self._zoom_level = 1
+        self._focus_points = []
         
         # Set up the UI
         self._setup_ui()
@@ -44,287 +38,230 @@ class LiveViewWidget(QWidget):
         """Set up the user interface."""
         # Main layout
         layout = QVBoxLayout(self)
+        layout.setContentsMargins(0, 0, 0, 0)
         
-        # Live view display
-        self._view_frame = QLabel()
-        self._view_frame.setAlignment(Qt.AlignmentFlag.AlignCenter)
-        self._view_frame.setFrameStyle(QFrame.Shape.Box | QFrame.Shadow.Sunken)
-        self._view_frame.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Expanding)
-        self._view_frame.setMinimumSize(640, 480)
-        self._view_frame.setText("No live view available")
-        layout.addWidget(self._view_frame)
+        # Live view display label
+        self._display_label = QLabel("No live view")
+        self._display_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        self._display_label.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Expanding)
+        self._display_label.setMinimumSize(640, 480)
         
-        # Controls layout
-        controls_layout = QHBoxLayout()
+        # Set initial style
+        self._display_label.setStyleSheet(
+            "QLabel { background-color: #222; color: #ddd; font-size: 14pt; }"
+        )
         
-        # Zoom control
-        zoom_layout = QVBoxLayout()
-        zoom_layout.addWidget(QLabel("Zoom:"))
-        self._zoom_slider = QSlider(Qt.Orientation.Horizontal)
-        self._zoom_slider.setRange(10, 200)  # 10% to 200%
-        self._zoom_slider.setValue(100)  # 100%
-        self._zoom_slider.setTickPosition(QSlider.TickPosition.TicksBelow)
-        self._zoom_slider.setTickInterval(10)
-        zoom_layout.addWidget(self._zoom_slider)
-        controls_layout.addLayout(zoom_layout)
-        
-        # Display options
-        options_layout = QVBoxLayout()
-        options_layout.addWidget(QLabel("Display Options:"))
-        options_hbox = QHBoxLayout()
-        
-        # Focus peaking button
-        self._focus_peaking_btn = QPushButton("Focus Peaking")
-        self._focus_peaking_btn.setCheckable(True)
-        options_hbox.addWidget(self._focus_peaking_btn)
-        
-        # Histogram button
-        self._histogram_btn = QPushButton("Histogram")
-        self._histogram_btn.setCheckable(True)
-        options_hbox.addWidget(self._histogram_btn)
-        
-        # Grid button
-        self._grid_btn = QPushButton("Grid")
-        self._grid_btn.setCheckable(True)
-        options_hbox.addWidget(self._grid_btn)
-        
-        options_layout.addLayout(options_hbox)
-        controls_layout.addLayout(options_layout)
-        
-        # Add all controls to the main layout
-        layout.addLayout(controls_layout)
+        layout.addWidget(self._display_label)
     
     def _setup_connections(self):
-        """Set up signal connections."""
-        # Connect live view manager signals
-        self._live_view_manager.frame_available.connect(self._on_frame)
-        self._live_view_manager.live_view_started.connect(self._on_live_view_started)
-        self._live_view_manager.live_view_stopped.connect(self._on_live_view_stopped)
-        
-        # Connect control signals
-        self._zoom_slider.valueChanged.connect(self._on_zoom_changed)
-        self._focus_peaking_btn.toggled.connect(self._on_focus_peaking_toggled)
-        self._histogram_btn.toggled.connect(self._on_histogram_toggled)
-        self._grid_btn.toggled.connect(self._on_grid_toggled)
+        """Set up signal/slot connections."""
+        self._live_view_manager.frame_available.connect(self.update_frame)
     
     @pyqtSlot(object)
-    def _on_frame(self, frame: np.ndarray):
-        """Handle new frame from the camera.
+    def update_frame(self, frame):
+        """Update the displayed frame.
         
         Args:
-            frame: Camera frame as NumPy array or bytes
+            frame: NumPy array containing the frame data
         """
-        if frame is None:
-            return
-        
-        # If frame is bytes, convert to NumPy array
-        if isinstance(frame, bytes):
-            try:
-                # Assuming RGB format with width=640, height=480
-                frame_np = np.frombuffer(frame, dtype=np.uint8).reshape(480, 640, 3)
-                self._current_frame = frame_np.copy()
-            except Exception as e:
-                logger.error(f"Error converting bytes to array: {e}")
-                return
-        else:
-            # Frame is already a NumPy array
-            self._current_frame = frame.copy()
-            
-        # Process the frame (apply selected enhancements)
-        processed_frame = self._process_frame(self._current_frame)
-        
-        # Convert the frame to QImage
-        if len(processed_frame.shape) == 3 and processed_frame.shape[2] == 3:
-            # RGB image
-            height, width, channels = processed_frame.shape
-            bytes_per_line = channels * width
-            q_img = QImage(processed_frame.data, width, height, bytes_per_line, QImage.Format.Format_RGB888)
-        else:
-            # Grayscale image
-            height, width = processed_frame.shape
-            q_img = QImage(processed_frame.data, width, height, width, QImage.Format.Format_Grayscale8)
-        
-        # Apply zoom
-        if self._zoom_factor != 1.0:
-            pixmap = QPixmap.fromImage(q_img)
-            scaled_width = int(width * self._zoom_factor)
-            scaled_height = int(height * self._zoom_factor)
-            pixmap = pixmap.scaled(scaled_width, scaled_height, Qt.AspectRatioMode.KeepAspectRatio)
-        else:
-            pixmap = QPixmap.fromImage(q_img)
-        
-        # Apply overlays (grid, etc.)
-        if self._show_grid:
-            pixmap = self._add_grid_overlay(pixmap)
-        
-        # Update the display
-        self._view_frame.setPixmap(pixmap)
-    
-    def _process_frame(self, frame: np.ndarray) -> np.ndarray:
-        """Process a frame with selected enhancements.
-        
-        Args:
-            frame: Raw frame
-            
-        Returns:
-            Processed frame
-        """
-        # Make a copy to avoid modifying the original
-        result = frame.copy()
-        
-        # Apply focus peaking if enabled
-        if self._show_focus_peaking:
-            result = self._apply_focus_peaking(result)
-        
-        # Apply other processing as needed
-        
-        return result
-    
-    def _apply_focus_peaking(self, frame: np.ndarray) -> np.ndarray:
-        """Apply focus peaking to the frame.
-        
-        Args:
-            frame: Input frame
-            
-        Returns:
-            Frame with focus peaking
-        """
-        # This is a simple implementation using edge detection
-        # For a real implementation, you might want to use more sophisticated methods
-        
         try:
-            import cv2
-            
-            # Convert to grayscale if needed
-            if len(frame.shape) == 3:
-                gray = cv2.cvtColor(frame, cv2.COLOR_RGB2GRAY)
-            else:
-                gray = frame.copy()
-            
-            # Apply Laplacian for edge detection
-            edges = cv2.Laplacian(gray, cv2.CV_64F)
-            
-            # Normalize and threshold
-            edges = np.absolute(edges)
-            edges_norm = cv2.normalize(edges, None, 0, 255, cv2.NORM_MINMAX, dtype=cv2.CV_8U)
-            _, thresh = cv2.threshold(edges_norm, 50, 255, cv2.THRESH_BINARY)
-            
-            # Create a color overlay
-            if len(frame.shape) == 3:
-                result = frame.copy()
-                # Add blue highlighting to edges
-                result[thresh > 0, 2] = 255  # Set blue channel to max for edge pixels
-                return result
-            else:
-                # For grayscale, convert to color first
-                result = cv2.cvtColor(frame, cv2.COLOR_GRAY2RGB)
-                result[thresh > 0, 2] = 255  # Set blue channel to max for edge pixels
-                return result
+            if frame is None:
+                return
                 
-        except ImportError:
-            logger.warning("OpenCV not available for focus peaking")
-            return frame
+            # Store the current frame
+            self._current_frame = frame
+            
+            # Convert the frame to QImage
+            height, width = frame.shape[0], frame.shape[1]
+            
+            if len(frame.shape) == 3 and frame.shape[2] == 3:
+                # RGB data
+                format = QImage.Format.Format_RGB888
+                bytes_per_line = 3 * width
+                qimage = QImage(frame.data, width, height, bytes_per_line, format)
+            elif len(frame.shape) == 2:
+                # Grayscale data
+                format = QImage.Format.Format_Grayscale8
+                bytes_per_line = width
+                qimage = QImage(frame.data, width, height, bytes_per_line, format)
+            else:
+                # Unknown format, try anyway
+                logger.warning(f"Unknown frame format: {frame.shape}")
+                format = QImage.Format.Format_RGB888
+                bytes_per_line = 3 * width
+                qimage = QImage(frame.data, width, height, bytes_per_line, format)
+            
+            # Create a pixmap from the image
+            pixmap = QPixmap.fromImage(qimage)
+            
+            # Draw overlays if enabled
+            if self._display_overlays:
+                pixmap = self._draw_overlays(pixmap)
+            
+            # Resize to fit the display
+            display_size = self._display_label.size()
+            pixmap = pixmap.scaled(
+                display_size,
+                Qt.AspectRatioMode.KeepAspectRatio,
+                Qt.TransformationMode.SmoothTransformation
+            )
+            
+            # Update the display
+            self._display_label.setPixmap(pixmap)
+            
         except Exception as e:
-            logger.error(f"Error applying focus peaking: {str(e)}")
-            return frame
+            logger.error(f"Error updating live view frame: {str(e)}")
     
-    def _add_grid_overlay(self, pixmap: QPixmap) -> QPixmap:
-        """Add a grid overlay to the pixmap.
+    def _draw_overlays(self, pixmap):
+        """Draw overlays on the live view image.
         
         Args:
-            pixmap: Input pixmap
+            pixmap: QPixmap to draw on
             
         Returns:
-            Pixmap with grid overlay
+            QPixmap with overlays
         """
-        # Create a copy of the pixmap to draw on
-        result = QPixmap(pixmap)
-        painter = QPainter(result)
+        try:
+            # Create a copy of the pixmap to draw on
+            overlay_pixmap = QPixmap(pixmap)
+            
+            # Create a painter
+            painter = QPainter(overlay_pixmap)
+            
+            # Draw grid lines
+            self._draw_grid_lines(painter, overlay_pixmap.width(), overlay_pixmap.height())
+            
+            # Draw focus points
+            if self._focus_points:
+                self._draw_focus_points(painter, overlay_pixmap.width(), overlay_pixmap.height())
+            
+            # Draw zoom indicator
+            if self._zoom_level > 1:
+                self._draw_zoom_indicator(painter, overlay_pixmap.width(), overlay_pixmap.height())
+            
+            # End painting
+            painter.end()
+            
+            return overlay_pixmap
+            
+        except Exception as e:
+            logger.error(f"Error drawing overlays: {str(e)}")
+            return pixmap
+    
+    def _draw_grid_lines(self, painter, width, height):
+        """Draw grid lines on the image.
         
+        Args:
+            painter: QPainter to draw with
+            width: Image width
+            height: Image height
+        """
         # Set up the pen
         pen = QPen(QColor(255, 255, 255, 128))  # Semi-transparent white
         pen.setWidth(1)
         painter.setPen(pen)
         
-        # Get dimensions
-        width = pixmap.width()
-        height = pixmap.height()
-        
-        # Draw the rule of thirds grid
-        h1 = height // 3
-        h2 = h1 * 2
-        w1 = width // 3
-        w2 = w1 * 2
-        
-        # Draw horizontal lines
-        painter.drawLine(0, h1, width, h1)
-        painter.drawLine(0, h2, width, h2)
-        
-        # Draw vertical lines
-        painter.drawLine(w1, 0, w1, height)
-        painter.drawLine(w2, 0, w2, height)
-        
-        # Finish painting
-        painter.end()
-        
-        return result
+        # Draw rule of thirds grid
+        painter.drawLine(width // 3, 0, width // 3, height)
+        painter.drawLine(2 * width // 3, 0, 2 * width // 3, height)
+        painter.drawLine(0, height // 3, width, height // 3)
+        painter.drawLine(0, 2 * height // 3, width, 2 * height // 3)
     
-    def _on_live_view_started(self):
-        """Handle live view started event."""
-        # Clear any previous message
-        self._view_frame.clear()
-    
-    def _on_live_view_stopped(self):
-        """Handle live view stopped event."""
-        self._view_frame.setText("Live view stopped")
-        self._view_frame.setPixmap(QPixmap())  # Clear any pixmap
-    
-    def _on_zoom_changed(self, value: int):
-        """Handle zoom slider value changed.
+    def _draw_focus_points(self, painter, width, height):
+        """Draw focus points on the image.
         
         Args:
-            value: New zoom value (10-200)
+            painter: QPainter to draw with
+            width: Image width
+            height: Image height
         """
-        self._zoom_factor = value / 100.0
-        # If we have a current frame, update the display
+        # Set up the pen
+        pen = QPen(QColor(0, 255, 0))  # Green
+        pen.setWidth(2)
+        painter.setPen(pen)
+        
+        # Calculate scaling factor based on original image and display size
+        orig_width = self._current_frame.shape[1]
+        orig_height = self._current_frame.shape[0]
+        scale_x = width / orig_width
+        scale_y = height / orig_height
+        
+        # Draw each focus point
+        for point in self._focus_points:
+            x, y = int(point[0] * scale_x), int(point[1] * scale_y)
+            painter.drawLine(x - 10, y, x + 10, y)
+            painter.drawLine(x, y - 10, x, y + 10)
+    
+    def _draw_zoom_indicator(self, painter, width, height):
+        """Draw zoom level indicator.
+        
+        Args:
+            painter: QPainter to draw with
+            width: Image width
+            height: Image height
+        """
+        # Set up the pen and text
+        painter.setPen(QColor(255, 255, 0))  # Yellow
+        painter.setFont(self.font())
+        
+        # Draw zoom level indicator
+        zoom_text = f"{self._zoom_level}x"
+        painter.drawText(10, 30, zoom_text)
+    
+    def set_focus_points(self, points):
+        """Set focus points to display.
+        
+        Args:
+            points: List of (x, y) tuples representing focus points
+        """
+        self._focus_points = points
+        
+        # Refresh the display if we have a current frame
         if self._current_frame is not None:
-            self._on_frame(self._current_frame)
+            self.update_frame(self._current_frame)
     
-    def _on_focus_peaking_toggled(self, checked: bool):
-        """Handle focus peaking button toggled.
+    def set_zoom_level(self, level):
+        """Set the zoom level indicator.
         
         Args:
-            checked: Whether the button is checked
+            level: Zoom level value
         """
-        self._show_focus_peaking = checked
-        # If we have a current frame, update the display
+        self._zoom_level = level
+        
+        # Refresh the display if we have a current frame
         if self._current_frame is not None:
-            self._on_frame(self._current_frame)
+            self.update_frame(self._current_frame)
     
-    def _on_histogram_toggled(self, checked: bool):
-        """Handle histogram button toggled.
+    def toggle_overlays(self, enabled=None):
+        """Toggle display of overlays.
         
         Args:
-            checked: Whether the button is checked
+            enabled: If provided, sets the overlay state, otherwise toggles it
         """
-        self._show_histogram = checked
-        # TODO: Implement histogram display
-    
-    def _on_grid_toggled(self, checked: bool):
-        """Handle grid button toggled.
+        if enabled is not None:
+            self._display_overlays = enabled
+        else:
+            self._display_overlays = not self._display_overlays
         
-        Args:
-            checked: Whether the button is checked
-        """
-        self._show_grid = checked
-        # If we have a current frame, update the display
+        # Refresh the display if we have a current frame
         if self._current_frame is not None:
-            self._on_frame(self._current_frame)
+            self.update_frame(self._current_frame)
     
-    def sizeHint(self) -> QSize:
-        """Get the recommended size for the widget.
+    def clear_display(self):
+        """Clear the live view display."""
+        self._display_label.clear()
+        self._display_label.setText("No live view")
+        self._current_frame = None
+        self._focus_points = []
+    
+    def resizeEvent(self, event):
+        """Handle resize events.
         
-        Returns:
-            Recommended size
+        Args:
+            event: Resize event
         """
-        return QSize(800, 600) 
+        super().resizeEvent(event)
+        
+        # Refresh the display if we have a current frame
+        if self._current_frame is not None:
+            self.update_frame(self._current_frame) 

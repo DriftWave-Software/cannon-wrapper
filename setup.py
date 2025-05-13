@@ -58,6 +58,41 @@ class CMakeBuild(build_ext):
             edsdk_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'lib', 'EDSDK')
             cmake_args += [f'-DEDSDK_PATH={edsdk_path}']
 
+        # Check if the EDSDK path exists
+        if not os.path.exists(edsdk_path):
+            raise RuntimeError(f"EDSDK path not found: {edsdk_path}")
+        
+        # Check if the EDSDK header directory exists
+        header_dir = None
+        if os.path.exists(os.path.join(edsdk_path, 'Header')):
+            header_dir = os.path.join(edsdk_path, 'Header')
+        elif os.path.exists(os.path.join(os.path.dirname(os.path.abspath(__file__)), 'lib', 'EDSDK', 'Header')):
+            header_dir = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'lib', 'EDSDK', 'Header')
+        
+        if not header_dir or not os.path.exists(os.path.join(header_dir, 'EDSDK.h')):
+            raise RuntimeError(f"EDSDK header files not found. Please check your EDSDK installation.")
+        
+        # Check if the EDSDK library directory exists
+        lib_dir = None
+        if os.path.exists(os.path.join(edsdk_path, 'Library')):
+            lib_dir = os.path.join(edsdk_path, 'Library')
+        elif os.path.exists(os.path.join(edsdk_path, 'lib')):
+            lib_dir = os.path.join(edsdk_path, 'lib')
+            
+        if platform.system() == "Windows":
+            if not lib_dir or not os.path.exists(os.path.join(lib_dir, 'EDSDK.lib')):
+                raise RuntimeError(f"EDSDK library file not found. Please check your EDSDK installation.")
+                
+            # Check for DLLs
+            dll_dir = None
+            if os.path.exists(os.path.join(edsdk_path, 'Dll')):
+                dll_dir = os.path.join(edsdk_path, 'Dll')
+            elif os.path.exists(os.path.join(edsdk_path, 'bin')):
+                dll_dir = os.path.join(edsdk_path, 'bin')
+                
+            if not dll_dir or not os.path.exists(os.path.join(dll_dir, 'EDSDK.dll')):
+                print(f"WARNING: EDSDK DLL files may be missing. Runtime errors may occur.")
+
         # Set build type
         cfg = 'Debug' if self.debug else 'Release'
         build_args = ['--config', cfg]
@@ -79,8 +114,18 @@ class CMakeBuild(build_ext):
             os.makedirs(build_dir)
 
         # Run CMake
+        print("Running CMake...")
+        print(f"  Source dir: {ext.sourcedir}")
+        print(f"  Build dir: {build_dir}")
+        print(f"  EDSDK path: {edsdk_path}")
+        print(f"  EDSDK header dir: {header_dir}")
+        print(f"  EDSDK library dir: {lib_dir}")
+        print(f"  CMake args: {cmake_args}")
+        print(f"  Build args: {build_args}")
+        
         subprocess.check_call(['cmake', ext.sourcedir] + cmake_args, cwd=build_dir, env=env)
         subprocess.check_call(['cmake', '--build', '.'] + build_args, cwd=build_dir)
+        print("Build completed!")
 
 
 with open('README.md', 'r', encoding='utf-8') as f:
@@ -89,8 +134,8 @@ with open('README.md', 'r', encoding='utf-8') as f:
 setup(
     name='cannon_wrapper',
     version=version,
-    author='Canon EDSDK Team',
-    author_email='info@example.com',
+    author='Infinia Team',
+    author_email='info@infinia.com',
     description='Python wrapper for Canon EDSDK',
     long_description=long_description,
     long_description_content_type='text/markdown',

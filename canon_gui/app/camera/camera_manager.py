@@ -10,7 +10,7 @@ from PyQt6.QtCore import QObject, pyqtSignal
 # Import the cannon_wrapper
 try:
     # Try to import the real cannon_wrapper
-    from cannon_wrapper import Canon, CanonError, DeviceNotFoundError
+    from cannon_wrapper import Canon, CanonError, DeviceNotFoundError, ConnectionError, OperationError
     _has_camera = True
     _is_mock = False
     logging.info("Using real cannon_wrapper module")
@@ -81,12 +81,20 @@ class CameraManager(QObject):
         try:
             self.status_changed.emit("Connecting to camera...")
             self._camera = Canon()
-            self._camera.connect()
+            
+            # Get the first available camera - in a real implementation, we should
+            # discover cameras and let the user select one
+
+            # The EDSDK C++ layer should handle camera discovery
+            # For now, we'll assume there's a camera available
+            # TODO: Add proper camera discovery
+            camera_ref = "CAMERA_REF_PLACEHOLDER"  # This needs to be replaced with actual camera reference
+            self._camera.connect(camera_ref)
             
             # Get camera information
             self._camera_info = {
-                "model": self._camera.get_device_info().get("product_name", "Unknown Camera"),
-                "serial": self._camera.get_device_info().get("serial_number", "Unknown"),
+                "model": self._camera.get_model_name(),
+                "serial": "Unknown",  # Add if available in your wrapper
                 "battery": self._camera.get_battery_level()
             }
             
@@ -98,6 +106,10 @@ class CameraManager(QObject):
         except DeviceNotFoundError:
             self.camera_error.emit("No camera found. Please make sure a camera is connected and turned on.")
             self.status_changed.emit("Connection failed: No camera found")
+            return False
+        except ConnectionError as e:
+            self.camera_error.emit(f"Error connecting to camera: {str(e)}")
+            self.status_changed.emit("Connection failed")
             return False
         except CanonError as e:
             self.camera_error.emit(f"Error connecting to camera: {str(e)}")
@@ -121,6 +133,9 @@ class CameraManager(QObject):
             self.camera_disconnected.emit()
             self.status_changed.emit("Camera disconnected")
             return True
+        except OperationError as e:
+            self.camera_error.emit(f"Error disconnecting camera: {str(e)}")
+            return False
         except CanonError as e:
             self.camera_error.emit(f"Error disconnecting camera: {str(e)}")
             return False

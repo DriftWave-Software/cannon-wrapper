@@ -1,3 +1,12 @@
 [build-system]
-requires = ["pybind11[global]", "scikit-build", "cmake"]
-build-backend = "setuptools.build_meta" 
+requires = [
+    "setuptools>=42",
+    "wheel>=0.37.0",
+    "pybind11>=2.9.0",
+    "cmake>=3.21.0",
+    "numpy>=1.19.0"
+]
+build-backend = "setuptools.build_meta"
+
+# Removing the [project] section since we're using setup.py for configuration
+# This resolves the warnings about "defined outside of pyproject.toml" 
