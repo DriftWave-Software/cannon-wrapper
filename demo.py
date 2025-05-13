@@ -23,15 +23,20 @@ def run_api_demo():
         logger.info("Initializing camera...")
         camera = Canon()
         
-        # In a real application, you would get the camera reference from EDSDK
-        # For this demo, we're using a placeholder
-        camera_ref = "CAMERA_REF_PLACEHOLDER"
-        
-        try:
-            # Connect to the camera
+        # Get the camera reference from EDSDK
+        eds.EdsInitializeSDK()
+        cam_list = eds.EdsGetCameraList()
+        count = eds.EdsGetChildCount(cam_list)
+        if count > 0:
+            camera_ref = eds.EdsGetChildAtIndex(cam_list, 0)
             logger.info("Connecting to camera...")
             camera.connect(camera_ref)
-            
+        else:
+            logger.error("No cameras found")
+        eds.EdsRelease(cam_list)
+        eds.EdsTerminateSDK()
+        
+        try:
             # Get information about the camera
             model_name = camera.get_model_name()
             logger.info(f"Connected to camera: {model_name}")

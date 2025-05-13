@@ -14,12 +14,24 @@
 // Basic class definitions to replace the full implementation
 namespace py = pybind11;
 
-// Simple implementations for required classes
+// Observer and Observable for event handling
+class Observer {
+public:
+    virtual void update(void* event) {}
+};
+
+class Observable {
+public:
+    void addObserver(Observer* observer) {}
+    void removeObserver(Observer* observer) {}
+    void notifyObservers(void* event = nullptr) {}
+};
+
+// CameraModel must be defined before any class that uses it
 class CameraModel {
 public:
     CameraModel(uintptr_t camera) : camera_(reinterpret_cast<EdsCameraRef>(camera)) {}
     uintptr_t getCameraObject() const { return reinterpret_cast<uintptr_t>(camera_); }
-
     // Property getters - simplified stubs
     EdsUInt32 getAEMode() const { return 0; }
     EdsUInt32 getTv() const { return 0; }
@@ -37,7 +49,6 @@ public:
     EdsUInt32 getEvfAFMode() const { return 0; }
     const char* getModelName() const { return "Camera"; }
     EdsUInt32 getFocusInfo() const { return 0; }
-
     // Property setters - simplified stubs
     void setAEMode(EdsUInt32 value) {}
     void setTv(EdsUInt32 value) {}
@@ -55,26 +66,15 @@ public:
     void setEvfAFMode(EdsUInt32 value) {}
     void setModelName(const char* name) {}
     void setFocusInfo(EdsUInt32 value) {}
-
     // Property descriptions - simplified stubs
     std::vector<EdsUInt32> getPropertyDesc(EdsUInt32 propertyID) { return {}; }
     void setPropertyDesc(EdsUInt32 propertyID, const std::vector<EdsUInt32>& desc) {}
-
-private:
-    EdsCameraRef camera_;
-};
-
-// Observer and Observable for event handling
-class Observer {
-public:
-    virtual void update(void* event) {}
-};
-
-class Observable {
-public:
+    // Observer pattern methods
     void addObserver(Observer* observer) {}
     void removeObserver(Observer* observer) {}
     void notifyObservers(void* event = nullptr) {}
+private:
+    EdsCameraRef camera_;
 };
 
 // Action listener
@@ -353,7 +353,11 @@ PYBIND11_MODULE(edsdk_bindings, m) {
         .def("set_focus_info", &CameraModel::setFocusInfo)
         // Property descriptions
         .def("get_property_desc", &CameraModel::getPropertyDesc)
-        .def("set_property_desc", &CameraModel::setPropertyDesc);
+        .def("set_property_desc", &CameraModel::setPropertyDesc)
+        // Observer pattern methods
+        .def("add_observer", &CameraModel::addObserver)
+        .def("remove_observer", &CameraModel::removeObserver)
+        .def("notify_observers", &CameraModel::notifyObservers);
     
     // CameraController
     py::class_<CameraController>(m, "CameraController")
@@ -376,49 +380,64 @@ PYBIND11_MODULE(edsdk_bindings, m) {
         .def("execute", &Command::execute);
 
     py::class_<TakePictureCommand>(m, "TakePictureCommand")
-        .def(py::init<uintptr_t>());
+        .def(py::init<uintptr_t>())
+        .def("execute", &TakePictureCommand::execute);
         
     py::class_<PressShutterButtonCommand>(m, "PressShutterButtonCommand")
-        .def(py::init<uintptr_t, EdsUInt32>());
+        .def(py::init<uintptr_t, EdsUInt32>())
+        .def("execute", &PressShutterButtonCommand::execute);
         
     py::class_<OpenSessionCommand>(m, "OpenSessionCommand")
-        .def(py::init<uintptr_t>());
+        .def(py::init<uintptr_t>())
+        .def("execute", &OpenSessionCommand::execute);
         
     py::class_<CloseSessionCommand>(m, "CloseSessionCommand")
-        .def(py::init<uintptr_t>());
+        .def(py::init<uintptr_t>())
+        .def("execute", &CloseSessionCommand::execute);
         
     py::class_<SaveSettingCommand>(m, "SaveSettingCommand")
-        .def(py::init<uintptr_t>());
+        .def(py::init<uintptr_t>())
+        .def("execute", &SaveSettingCommand::execute);
 
     py::class_<StartEvfCommand>(m, "StartEvfCommand")
-        .def(py::init<uintptr_t>());
+        .def(py::init<uintptr_t>())
+        .def("execute", &StartEvfCommand::execute);
         
     py::class_<EndEvfCommand>(m, "EndEvfCommand")
-        .def(py::init<uintptr_t>());
+        .def(py::init<uintptr_t>())
+        .def("execute", &EndEvfCommand::execute);
         
     py::class_<DownloadEvfCommand>(m, "DownloadEvfCommand")
-        .def(py::init<uintptr_t>());
+        .def(py::init<uintptr_t>())
+        .def("execute", &DownloadEvfCommand::execute);
         
     py::class_<DoEvfAFCommand>(m, "DoEvfAFCommand")
-        .def(py::init<uintptr_t, EdsPoint>());
+        .def(py::init<uintptr_t, EdsPoint>())
+        .def("execute", &DoEvfAFCommand::execute);
         
     py::class_<DriveLensCommand>(m, "DriveLensCommand")
-        .def(py::init<uintptr_t, EdsUInt32>());
+        .def(py::init<uintptr_t, EdsUInt32>())
+        .def("execute", &DriveLensCommand::execute);
 
     py::class_<GetPropertyCommand>(m, "GetPropertyCommand")
-        .def(py::init<uintptr_t, EdsUInt32>());
+        .def(py::init<uintptr_t, EdsUInt32>())
+        .def("execute", &GetPropertyCommand::execute);
         
     py::class_<GetPropertyDescCommand>(m, "GetPropertyDescCommand") 
-        .def(py::init<uintptr_t, EdsUInt32>());
+        .def(py::init<uintptr_t, EdsUInt32>())
+        .def("execute", &GetPropertyDescCommand::execute);
         
     py::class_<SetCapacityCommand>(m, "SetCapacityCommand")
-        .def(py::init<uintptr_t, const EdsCapacity&>());
+        .def(py::init<uintptr_t, const EdsCapacity&>())
+        .def("execute", &SetCapacityCommand::execute);
         
     py::class_<NotifyCommand>(m, "NotifyCommand")
-        .def(py::init<uintptr_t, const std::string&>());
+        .def(py::init<uintptr_t, const std::string&>())
+        .def("execute", &NotifyCommand::execute);
         
     py::class_<DownloadCommand>(m, "DownloadCommand")
-        .def(py::init<uintptr_t, uintptr_t>());
+        .def(py::init<uintptr_t, uintptr_t>())
+        .def("execute", &DownloadCommand::execute);
 
     // Utility classes
     py::class_<ActionEvent>(m, "ActionEvent")
@@ -437,6 +456,7 @@ PYBIND11_MODULE(edsdk_bindings, m) {
         .def("get_arg", &CameraEvent::getArg);
         
     py::class_<Observer>(m, "Observer")
+        .def(py::init<>())
         .def("update", &Observer::update);
         
     py::class_<Observable>(m, "Observable")
@@ -582,4 +602,27 @@ PYBIND11_MODULE(edsdk_bindings, m) {
         .def_readwrite("number_of_free_clusters", &EdsCapacity::numberOfFreeClusters)
         .def_readwrite("bytes_per_sector", &EdsCapacity::bytesPerSector)
         .def_readwrite("reset", &EdsCapacity::reset);
+
+    // Expose EdsPropertyID as a submodule/class
+    py::module_ EdsPropertyID = m.def_submodule("EdsPropertyID");
+    EdsPropertyID.attr("ISO_SPEED") = static_cast<int>(kEdsPropID_ISOSpeed);
+    EdsPropertyID.attr("AV") = static_cast<int>(kEdsPropID_Av);
+    EdsPropertyID.attr("TV") = static_cast<int>(kEdsPropID_Tv);
+    // Add more as needed
+
+    // Expose EdsEvfDriveLens as a submodule/class
+    py::module_ EdsEvfDriveLens = m.def_submodule("EdsEvfDriveLens");
+    EdsEvfDriveLens.attr("NEAR_1") = static_cast<int>(kEdsEvfDriveLens_Near1);
+    EdsEvfDriveLens.attr("NEAR_2") = static_cast<int>(kEdsEvfDriveLens_Near2);
+    EdsEvfDriveLens.attr("NEAR_3") = static_cast<int>(kEdsEvfDriveLens_Near3);
+    EdsEvfDriveLens.attr("FAR_1") = static_cast<int>(kEdsEvfDriveLens_Far1);
+    EdsEvfDriveLens.attr("FAR_2") = static_cast<int>(kEdsEvfDriveLens_Far2);
+    EdsEvfDriveLens.attr("FAR_3") = static_cast<int>(kEdsEvfDriveLens_Far3);
+
+    // Expose EdsCameraCommand as a submodule/class
+    py::module_ EdsCameraCommand = m.def_submodule("EdsCameraCommand");
+    EdsCameraCommand.attr("SHUTTER_BUTTON_HALFWAY") = static_cast<int>(kEdsCameraCommand_ShutterButton_Halfway);
+    EdsCameraCommand.attr("SHUTTER_BUTTON_COMPLETELY") = static_cast<int>(kEdsCameraCommand_ShutterButton_Completely);
+    EdsCameraCommand.attr("SHUTTER_BUTTON_OFF") = static_cast<int>(kEdsCameraCommand_ShutterButton_OFF);
+    // Add more as needed
 } 

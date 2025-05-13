@@ -24,7 +24,16 @@ def test_camera_connection(camera_ref=None):
         
         # Connect to the camera
         logger.info("Connecting to camera...")
-        camera.connect(camera_ref)
+        eds.EdsInitializeSDK()
+        cam_list = eds.EdsGetCameraList()
+        count = eds.EdsGetChildCount(cam_list)
+        if count > 0:
+            camera_ref = eds.EdsGetChildAtIndex(cam_list, 0)
+            camera.connect(camera_ref)
+        else:
+            logger.error("No cameras found")
+        eds.EdsRelease(cam_list)
+        eds.EdsTerminateSDK()
         
         # Get and display camera information
         model_name = camera.get_model_name()
@@ -57,7 +66,16 @@ def test_camera_settings(camera_ref=None):
     try:
         # Create and connect to the camera
         camera = Canon()
-        camera.connect(camera_ref)
+        eds.EdsInitializeSDK()
+        cam_list = eds.EdsGetCameraList()
+        count = eds.EdsGetChildCount(cam_list)
+        if count > 0:
+            camera_ref = eds.EdsGetChildAtIndex(cam_list, 0)
+            camera.connect(camera_ref)
+        else:
+            logger.error("No cameras found")
+        eds.EdsRelease(cam_list)
+        eds.EdsTerminateSDK()
         model_name = camera.get_model_name()
         logger.info(f"Connected to camera: {model_name}")
         
@@ -112,7 +130,16 @@ def test_live_view(camera_ref=None):
     try:
         # Create and connect to the camera
         camera = Canon()
-        camera.connect(camera_ref)
+        eds.EdsInitializeSDK()
+        cam_list = eds.EdsGetCameraList()
+        count = eds.EdsGetChildCount(cam_list)
+        if count > 0:
+            camera_ref = eds.EdsGetChildAtIndex(cam_list, 0)
+            camera.connect(camera_ref)
+        else:
+            logger.error("No cameras found")
+        eds.EdsRelease(cam_list)
+        eds.EdsTerminateSDK()
         model_name = camera.get_model_name()
         logger.info(f"Connected to camera: {model_name}")
         
@@ -159,7 +186,16 @@ def test_take_picture(camera_ref=None):
     try:
         # Create and connect to the camera
         camera = Canon()
-        camera.connect(camera_ref)
+        eds.EdsInitializeSDK()
+        cam_list = eds.EdsGetCameraList()
+        count = eds.EdsGetChildCount(cam_list)
+        if count > 0:
+            camera_ref = eds.EdsGetChildAtIndex(cam_list, 0)
+            camera.connect(camera_ref)
+        else:
+            logger.error("No cameras found")
+        eds.EdsRelease(cam_list)
+        eds.EdsTerminateSDK()
         model_name = camera.get_model_name()
         logger.info(f"Connected to camera: {model_name}")
         
@@ -210,22 +246,18 @@ def main():
                         default='all', help='Test to run')
     args = parser.parse_args()
     
-    # Get a camera reference
-    # In a real implementation, this would be found through EDSDK
-    camera_ref = "CAMERA_REF_PLACEHOLDER"  # Replace with actual camera reference
-    
     # Run the selected test
     if args.test == 'connection' or args.test == 'all':
-        test_camera_connection(camera_ref)
+        test_camera_connection()
         
     if args.test == 'settings' or args.test == 'all':
-        test_camera_settings(camera_ref)
+        test_camera_settings()
         
     if args.test == 'live_view' or args.test == 'all':
-        test_live_view(camera_ref)
+        test_live_view()
         
     if args.test == 'picture' or args.test == 'all':
-        test_take_picture(camera_ref)
+        test_take_picture()
 
 if __name__ == "__main__":
     main() 

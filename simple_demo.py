@@ -9,6 +9,7 @@ import sys
 import time
 import logging
 import argparse
+import edsdk_bindings as eds
 
 # Set up logging
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(name)s - %(levelname)s - %(message)s')
@@ -27,23 +28,30 @@ def run_camera_demo():
             # For this demo, we'll use a placeholder camera reference
             # In a real application, you'd need the actual camera reference from EDSDK
             # This is a placeholder and will cause an error, but it shows how the API works
-            camera_ref = None  # This would need to be replaced with an actual camera reference
-            
-            logger.info("Connecting to camera...")
-            camera.connect(camera_ref)
-            
-            # Camera is now connected, we can control it
-            model_name = camera.get_model_name()
-            logger.info(f"Connected to camera: {model_name}")
-            
-            # Take a picture
-            logger.info("Taking a picture...")
-            camera.take_picture()
-            
-            # Disconnect from the camera
-            logger.info("Disconnecting from camera...")
-            camera.disconnect()
-            logger.info("Camera disconnected.")
+            eds.EdsInitializeSDK()
+            cam_list = eds.EdsGetCameraList()
+            count = eds.EdsGetChildCount(cam_list)
+            if count > 0:
+                cam_ref = eds.EdsGetChildAtIndex(cam_list, 0)
+                logger.info("Connecting to camera...")
+                camera.connect(cam_ref)
+                
+                # Camera is now connected, we can control it
+                model_name = camera.get_model_name()
+                logger.info(f"Connected to camera: {model_name}")
+                
+                # Take a picture
+                logger.info("Taking a picture...")
+                camera.take_picture()
+                
+                # Disconnect from the camera
+                logger.info("Disconnecting from camera...")
+                camera.disconnect()
+                logger.info("Camera disconnected.")
+            else:
+                logger.error("No cameras found")
+            eds.EdsRelease(cam_list)
+            eds.EdsTerminateSDK()
             
         except DeviceNotFoundError:
             logger.error("No camera found. Please make sure a camera is connected and turned on.")

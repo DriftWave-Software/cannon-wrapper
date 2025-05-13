@@ -85,6 +85,7 @@ class EdsEventListener(eds.Observer):
     """Event listener for Canon camera events."""
     
     def __init__(self, camera):
+        super().__init__()  # Required for pybind11 subclassing
         self.camera = camera
         self.callbacks = {}
     
@@ -163,16 +164,16 @@ class Canon:
             self._model.add_observer(self._event_listener)
             
             # Open the session
-            cmd = eds.OpenSessionCommand(self._model)
+            cmd = eds.OpenSessionCommand(self._model.get_camera_object())
             if not cmd.execute():
                 raise ConnectionError("Failed to open camera session")
             
             # Set camera capacity (needed for some operations)
             capacity = eds.EdsCapacity()
             capacity.reset = 1
-            capacity.bytes_per_cluster = 0x1000
+            capacity.bytes_per_sector = 0x1000
             capacity.number_of_free_clusters = 0x7FFFFFFF  # Max value
-            capacity_cmd = eds.SetCapacityCommand(self._model, capacity)
+            capacity_cmd = eds.SetCapacityCommand(self._model.get_camera_object(), capacity)
             capacity_cmd.execute()
             
             self._is_connected = True
@@ -198,7 +199,7 @@ class Canon:
                 self.stop_live_view()
             
             # Close the session
-            cmd = eds.CloseSessionCommand(self._model)
+            cmd = eds.CloseSessionCommand(self._model.get_camera_object())
             if not cmd.execute():
                 raise OperationError("Failed to close camera session")
             
@@ -294,7 +295,7 @@ class Canon:
         self._ensure_connected()
         
         try:
-            cmd = eds.TakePictureCommand(self._model)
+            cmd = eds.TakePictureCommand(self._model.get_camera_object())
             return cmd.execute()
             
         except Exception as e:
@@ -315,7 +316,7 @@ class Canon:
         self._ensure_connected()
         
         try:
-            cmd = eds.PressShutterButtonCommand(self._model, mode)
+            cmd = eds.PressShutterButtonCommand(self._model.get_camera_object(), mode)
             return cmd.execute()
             
         except Exception as e:
@@ -345,7 +346,7 @@ class Canon:
             self._model.set_evf_output_device(3)  # PC live view
             
             # Execute the start command
-            cmd = eds.StartEvfCommand(self._model)
+            cmd = eds.StartEvfCommand(self._model.get_camera_object())
             if not cmd.execute():
                 raise OperationError("Failed to start live view")
             
@@ -371,7 +372,7 @@ class Canon:
         
         try:
             # Execute the end command
-            cmd = eds.EndEvfCommand(self._model)
+            cmd = eds.EndEvfCommand(self._model.get_camera_object())
             if not cmd.execute():
                 raise OperationError("Failed to stop live view")
             
@@ -397,7 +398,7 @@ class Canon:
         
         try:
             # Execute the download command
-            cmd = eds.DownloadEvfCommand(self._model)
+            cmd = eds.DownloadEvfCommand(self._model.get_camera_object())
             if not cmd.execute():
                 raise OperationError("Failed to download live view frame")
             
@@ -447,7 +448,7 @@ class Canon:
                     drive_lens = eds.EdsEvfDriveLens.FAR_1
             
             # Execute the drive lens command
-            cmd = eds.DriveLensCommand(self._model, drive_lens)
+            cmd = eds.DriveLensCommand(self._model.get_camera_object(), drive_lens)
             return cmd.execute()
             
         except Exception as e:
