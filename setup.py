@@ -1,176 +1,78 @@
 import os
-import re
-import sys
-import platform
-import subprocess
 from setuptools import setup, Extension, find_packages
-from setuptools.command.build_ext import build_ext
-from pathlib import Path
 
-# Get version from __init__.py
-with open('__init__.py', 'r') as f:
-    version_match = re.search(r"^__version__ = ['\"]([^'\"]*)['\"]", f.read(), re.M)
-    if version_match:
-        version = version_match.group(1)
-    else:
-        version = '0.1.0'  # Default version if not found
+package_name = "edsdk-python"
+version = "0.1"
 
+here = os.path.abspath(os.path.dirname(__file__))
 
-# A CMakeExtension class to handle CMake build
-class CMakeExtension(Extension):
-    def __init__(self, name, sourcedir=''):
-        Extension.__init__(self, name, sources=[])
-        self.sourcedir = os.path.abspath(sourcedir)
+try:
+    with open(os.path.join(here, "README.md"), encoding="utf-8") as f:
+        long_description = "\n" + f.read()
+except FileNotFoundError:
+    long_description = ""
 
 
-# Command to build the extension using CMake
-class CMakeBuild(build_ext):
-    def run(self):
-        try:
-            subprocess.check_output(['cmake', '--version'])
-        except OSError:
-            raise RuntimeError("CMake must be installed to build the extension")
+_DEBUG = True
+_DEBUG_LEVEL = 0
 
-        for ext in self.extensions:
-            self.build_extension(ext)
-
-    def build_extension(self, ext):
-        extdir = os.path.abspath(os.path.dirname(self.get_ext_fullpath(ext.name)))
-        
-        # Required for Windows
-        if platform.system() == "Windows":
-            cmake_args = [f'-DCMAKE_LIBRARY_OUTPUT_DIRECTORY={extdir}']
-            
-            # Determine architecture and set appropriate EDSDK path
-            if sys.maxsize > 2**32:
-                cmake_args += ['-A', 'x64']
-                # Use 64-bit EDSDK
-                edsdk_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'lib', 'EDSDK_64')
-            else:
-                # Use 32-bit EDSDK
-                edsdk_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'lib', 'EDSDK')
-                
-            # Add EDSDK path to CMake arguments
-            cmake_args += [f'-DEDSDK_PATH={edsdk_path}']
-        else:
-            cmake_args = [f'-DCMAKE_LIBRARY_OUTPUT_DIRECTORY={extdir}']
-            # Add lib/EDSDK path for non-Windows platforms
-            edsdk_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'lib', 'EDSDK')
-            cmake_args += [f'-DEDSDK_PATH={edsdk_path}']
-
-        # Check if the EDSDK path exists
-        if not os.path.exists(edsdk_path):
-            raise RuntimeError(f"EDSDK path not found: {edsdk_path}")
-        
-        # Check if the EDSDK header directory exists
-        header_dir = None
-        if os.path.exists(os.path.join(edsdk_path, 'Header')):
-            header_dir = os.path.join(edsdk_path, 'Header')
-        elif os.path.exists(os.path.join(os.path.dirname(os.path.abspath(__file__)), 'lib', 'EDSDK', 'Header')):
-            header_dir = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'lib', 'EDSDK', 'Header')
-        
-        if not header_dir or not os.path.exists(os.path.join(header_dir, 'EDSDK.h')):
-            raise RuntimeError(f"EDSDK header files not found. Please check your EDSDK installation.")
-        
-        # Check if the EDSDK library directory exists
-        lib_dir = None
-        if os.path.exists(os.path.join(edsdk_path, 'Library')):
-            lib_dir = os.path.join(edsdk_path, 'Library')
-        elif os.path.exists(os.path.join(edsdk_path, 'lib')):
-            lib_dir = os.path.join(edsdk_path, 'lib')
-            
-        if platform.system() == "Windows":
-            if not lib_dir or not os.path.exists(os.path.join(lib_dir, 'EDSDK.lib')):
-                raise RuntimeError(f"EDSDK library file not found. Please check your EDSDK installation.")
-                
-            # Check for DLLs
-            dll_dir = None
-            if os.path.exists(os.path.join(edsdk_path, 'Dll')):
-                dll_dir = os.path.join(edsdk_path, 'Dll')
-            elif os.path.exists(os.path.join(edsdk_path, 'bin')):
-                dll_dir = os.path.join(edsdk_path, 'bin')
-                
-            if not dll_dir or not os.path.exists(os.path.join(dll_dir, 'EDSDK.dll')):
-                print(f"WARNING: EDSDK DLL files may be missing. Runtime errors may occur.")
-
-        # Set build type
-        cfg = 'Debug' if self.debug else 'Release'
-        build_args = ['--config', cfg]
-
-        # Configure platform-specific build options
-        if platform.system() == "Windows":
-            cmake_args += [f'-DCMAKE_LIBRARY_OUTPUT_DIRECTORY_{cfg.upper()}={extdir}']
-            build_args += ['--', '/m']
-        else:
-            cmake_args += [f'-DCMAKE_BUILD_TYPE={cfg}']
-            build_args += ['--', '-j2']
-
-        env = os.environ.copy()
-        env['CXXFLAGS'] = f'{env.get("CXXFLAGS", "")} -DVERSION_INFO=\\"{self.distribution.get_version()}\\"'
-        
-        # Build directory
-        build_dir = os.path.join(self.build_temp, ext.name)
-        if not os.path.exists(build_dir):
-            os.makedirs(build_dir)
-
-        # Run CMake
-        print("Running CMake...")
-        print(f"  Source dir: {ext.sourcedir}")
-        print(f"  Build dir: {build_dir}")
-        print(f"  EDSDK path: {edsdk_path}")
-        print(f"  EDSDK header dir: {header_dir}")
-        print(f"  EDSDK library dir: {lib_dir}")
-        print(f"  CMake args: {cmake_args}")
-        print(f"  Build args: {build_args}")
-        
-        subprocess.check_call(['cmake', ext.sourcedir] + cmake_args, cwd=build_dir, env=env)
-        subprocess.check_call(['cmake', '--build', '.'] + build_args, cwd=build_dir)
-        print("Build completed!")
+extra_compile_args = []
+if _DEBUG:
+    extra_compile_args += ["/W4", "/DDEBUG=%s" % _DEBUG_LEVEL]
+else:
+    extra_compile_args += ["/DNDEBUG"]
 
 
-with open('README.md', 'r', encoding='utf-8') as f:
-    long_description = f.read()
+EDSDK_PATH = "dependencies"
+# EDSDK_PATH = "dependencies/EDSDK_13.13.41_Win/"
+
+extension = Extension(
+    "edsdk.api",
+    libraries=["EDSDK"],
+    include_dirs=[os.path.join(EDSDK_PATH, "EDSDK/Header")],
+    library_dirs=[os.path.join(EDSDK_PATH, "EDSDK_64/Library")],
+    depends=["edsdk/edsdk_python.h", "edsdk/edsdk_utils.h"],
+    sources=["edsdk/edsdk_python.cpp","edsdk/edsdk_utils.cpp"],
+    extra_compile_args=extra_compile_args,
+)
 
 setup(
-    name='cannon_wrapper',
+    name=package_name,
     version=version,
-    author='Infinia Team',
-    author_email='info@infinia.com',
-    description='Python wrapper for Canon EDSDK',
+    author="Francesco Leacche",
+    author_email="francescoleacche@gmail.com",
+    url="https://github.com/jiloc/edsdk-python",
+    description="Python wrapper for Canon EDSKD Library",
     long_description=long_description,
-    long_description_content_type='text/markdown',
-    url='https://github.com/username/cannon_wrapper',
-    packages=find_packages(),
-    classifiers=[
-        'Programming Language :: Python :: 3',
-        'Programming Language :: Python :: 3.6',
-        'Programming Language :: Python :: 3.7',
-        'Programming Language :: Python :: 3.8',
-        'Programming Language :: Python :: 3.9',
-        'Programming Language :: Python :: 3.10',
-        'License :: OSI Approved :: MIT License',
-        'Operating System :: OS Independent',
-        'Topic :: Multimedia :: Graphics :: Capture :: Digital Camera',
-        'Topic :: Software Development :: Libraries :: Python Modules',
-    ],
-    python_requires='>=3.6',
-    ext_modules=[CMakeExtension('edsdk_bindings')],
-    cmdclass={'build_ext': CMakeBuild},
+    ext_modules = [extension],
     install_requires=[
-        'numpy',  # For image data handling
+        'pywin32 >= 228 ; platform_system=="Windows"'
     ],
-    extras_require={
-        'dev': [
-            'pytest',
-            'pytest-cov',
-            'flake8',
-            'mypy',
-            'black',
-        ],
-    },
+    setup_requires=["wheel"],
+    packages=find_packages(),
     include_package_data=True,
     package_data={
-        'cannon_wrapper': ['py.typed'],
+        "edsdk": ["py.typed", "api.pyi"],
     },
-    zip_safe=False,
-) 
+    data_files = [("Lib/site-packages/edsdk", [
+        EDSDK_PATH + "/EDSDK_64/Dll/EDSDK.dll",
+        EDSDK_PATH + "/EDSDK_64/Dll/EdsImage.dll"])],
+    python_requires=">=3.8.0",
+    long_description_content_type="text/markdown",
+    classifiers=[
+        "License :: OSI Approved :: MIT License",
+        "Intended Audience :: Developers",
+        "Environment :: Win32 (MS Windows)",
+        "Operating System :: Microsoft :: Windows",
+        "Programming Language :: Python",
+        "Programming Language :: Python :: 3",
+        "Programming Language :: Python :: 3.8",
+        "Programming Language :: Python :: 3.9",
+        "Programming Language :: Python :: 3.10",
+        "Programming Language :: Python :: Implementation :: CPython",
+        "Topic :: System :: Hardware :: Universal Serial Bus (USB)",
+        "Typing :: Stubs Only",
+    ],
+    keywords=["edsdk", "canon"],
+    license="MIT",
+)
