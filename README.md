@@ -6,18 +6,6 @@ Currently, it supports Windows only. But it shouldn't be difficult to adapt it f
 
 # How to build
 
-## Obtain the EDSDK from Canon
-
-Before you can use this library you need to obtain the EDSDK library from Canon. You can do so via their developers program:
-
-- [Canon Europe](https://www.canon-europe.com/business/imaging-solutions/sdk/)
-- [Canon Americas](https://developercommunity.usa.canon.com)
-- [Canon Asia](https://asia.canon/en/campaign/developerresources)
-- [Canon Oceania](https://www.canon.com.au/support/support-news/support-news/digital-slr-camera-software-developers-kit)
-- [Canon China](https://www.canon.com.cn/supports/sdk/index.html)
-- [Canon Korea](https://www.canon-ci.co.kr/support/sdk/sdkMain)
-- [Canon Japan](https://cweb.canon.jp/eos/info/api-package/)
-
 Once you were granted access - this may take a few days - download the latest version of their library.
 
 ## Copy the EDSDK Headers and Libraries
@@ -72,7 +60,3 @@ Run:
 ```bash
 pip install .
 ```
-
-## Throubleshooting
-
-C2365: 'Unknown': redefinition; previous definition was 'enumerator' : go to the section [Modify EDSDKTypes.h](#modify-edsdktypesh) and follow the instructions.
